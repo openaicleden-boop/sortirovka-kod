@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сортировщик кодов</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Lucide icons as SVG components
+        const ArrowUpDown = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>
+            </svg>
+        );
+
+        const Copy = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+            </svg>
+        );
+
+        const Trash2 = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>
+            </svg>
+        );
+
+        const X = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+            </svg>
+        );
+
+        function CodeSorter() {
+            const [input, setInput] = useState('');
+            const [codes, setCodes] = useState([]);
+            const [ascending, setAscending] = useState(true);
+            const [copySuccess, setCopySuccess] = useState(false);
+
+            useEffect(() => {
+                const saved = localStorage.getItem('sortedCodes');
+                if (saved) {
+                    setCodes(JSON.parse(saved));
+                }
+            }, []);
+
+            useEffect(() => {
+                localStorage.setItem('sortedCodes', JSON.stringify(codes));
+            }, [codes]);
+
+            const formatInput = (value) => {
+                const cleaned = value.replace(/[^А-Яа-я0-9]/g, '').toUpperCase();
+                let formatted = '';
+                
+                for (let i = 0; i < cleaned.length && i < 13; i++) {
+                    if (i < 4) {
+                        if (/[А-Я]/.test(cleaned[i])) {
+                            formatted += cleaned[i];
+                        }
+                    } else {
+                        if (/[0-9]/.test(cleaned[i])) {
+                            formatted += cleaned[i];
+                        }
+                    }
+                }
+                
+                let result = formatted.slice(0, 4);
+                if (formatted.length > 4) {
+                    result += '.' + formatted.slice(4, 10);
+                }
+                if (formatted.length > 10) {
+                    result += '.' + formatted.slice(10, 13);
+                }
+                
+                return result;
+            };
+
+            const handleInputChange = (e) => {
+                const formatted = formatInput(e.target.value);
+                setInput(formatted);
+            };
+
+            const sortCodes = (codeList, isAscending) => {
+                return [...codeList].sort((a, b) => {
+                    const [lettersA, ...numbersA] = a.split('.');
+                    const [lettersB, ...numbersB] = b.split('.');
+                    
+                    const letterCompare = lettersA.localeCompare(lettersB, 'ru');
+                    if (letterCompare !== 0) {
+                        return isAscending ? letterCompare : -letterCompare;
+                    }
+                    
+                    for (let i = 0; i < Math.max(numbersA.length, numbersB.length); i++) {
+                        const numA = parseInt(numbersA[i] || '0');
+                        const numB = parseInt(numbersB[i] || '0');
+                        if (numA !== numB) {
+                            return isAscending ? numA - numB : numB - numA;
+                        }
+                    }
+                    
+                    return 0;
+                });
+            };
+
+            const isComplete = () => {
+                const cleaned = input.replace(/\./g, '');
+                return cleaned.length === 13;
+            };
+
+            const handleAdd = () => {
+                if (isComplete()) {
+                    const newCodes = sortCodes([...codes, input], ascending);
+                    setCodes(newCodes);
+                    setInput('');
+                }
+            };
+
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter' && isComplete()) {
+                    handleAdd();
+                }
+            };
+
+            const handleClear = () => {
+                setInput('');
+            };
+
+            const handleClearAll = () => {
+                setCodes([]);
+            };
+
+            const handleInvert = () => {
+                setAscending(!ascending);
+                setCodes(sortCodes(codes, !ascending));
+            };
+
+            const handleCopy = () => {
+                const text = codes.join('\n');
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    setCopySuccess(true);
+                    setTimeout(() => setCopySuccess(false), 2000);
+                } catch (err) {
+                    console.error('Ошибка копирования:', err);
+                }
+                document.body.removeChild(textarea);
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+                    <div className="max-w-2xl mx-auto">
+                        <div className="bg-white rounded-2xl shadow-lg p-8">
+                            <h1 className="text-3xl font-bold text-slate-800 mb-2">Сортировщик кодов</h1>
+                            <p className="text-slate-500 mb-6">Формат: АААА.ХХХХХХ.ХХХ</p>
+                            
+                            <div className="mb-6">
+                                <input
+                                    type="text"
+                                    value={input}
+                                    onChange={handleInputChange}
+                                    onKeyPress={handleKeyPress}
+                                    placeholder="АААА.ХХХХХХ.ХХХ"
+                                    className="w-full px-4 py-3 text-lg border-2 border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                                    maxLength={17}
+                                />
+                                <div className="text-sm text-slate-400 mt-1">
+                                    {input.replace(/\./g, '').length}/13 символов
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 mb-6">
+                                <button
+                                    onClick={handleAdd}
+                                    disabled={!isComplete()}
+                                    className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium"
+                                >
+                                    Далее
+                                </button>
+                                <button
+                                    onClick={handleClear}
+                                    className="px-6 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors font-medium flex items-center justify-center gap-2"
+                                >
+                                    <X size={18} />
+                                    Стереть
+                                </button>
+                            </div>
+
+                            <div className="border-t-2 border-slate-200 pt-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl font-semibold text-slate-800">
+                                        Коды ({codes.length})
+                                    </h2>
+                                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                                        <ArrowUpDown size={16} />
+                                        {ascending ? 'По возрастанию' : 'По убыванию'}
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50 rounded-lg p-4 mb-4 max-h-96 overflow-y-auto">
+                                    {codes.length === 0 ? (
+                                        <p className="text-slate-400 text-center py-8">Список пуст</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {codes.map((code, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="bg-white px-4 py-2 rounded border border-slate-200 font-mono text-slate-700"
+                                                >
+                                                    {code}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3">
+                                    <button
+                                        onClick={handleInvert}
+                                        disabled={codes.length === 0}
+                                        className="px-4 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                                    >
+                                        <ArrowUpDown size={18} />
+                                        Инвертировать
+                                    </button>
+                                    <button
+                                        onClick={handleCopy}
+                                        disabled={codes.length === 0}
+                                        className="px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                                    >
+                                        <Copy size={18} />
+                                        {copySuccess ? 'Скопировано!' : 'Скопировать'}
+                                    </button>
+                                    <button
+                                        onClick={handleClearAll}
+                                        disabled={codes.length === 0}
+                                        className="px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                                    >
+                                        <Trash2 size={18} />
+                                        Очистить
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<CodeSorter />);
+    </script>
+</body>
+</html>
